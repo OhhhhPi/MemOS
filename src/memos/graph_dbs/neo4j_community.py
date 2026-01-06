@@ -55,11 +55,6 @@ class Neo4jCommunityGraphDB(Neo4jGraphDB):
 
         # Safely process metadata
         metadata = _prepare_node_metadata(metadata)
-
-        # serialization
-        if metadata["sources"]:
-            for idx in range(len(metadata["sources"])):
-                metadata["sources"][idx] = json.dumps(metadata["sources"][idx])
         # Extract required fields
         embedding = metadata.pop("embedding", None)
         if embedding is None:

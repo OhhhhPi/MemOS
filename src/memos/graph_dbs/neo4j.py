@@ -38,10 +38,13 @@ def _prepare_node_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
     if embedding and isinstance(embedding, list):
         metadata["embedding"] = [float(x) for x in embedding]
 
-    # serialization
-    if metadata["sources"]:
-        for idx in range(len(metadata["sources"])):
-            metadata["sources"][idx] = json.dumps(metadata["sources"][idx])
+    # serialization: store sources as JSON strings, but do NOT double-encode strings.
+    sources = metadata.get("sources")
+    if sources and isinstance(sources, list):
+        for idx in range(len(sources)):
+            if isinstance(sources[idx], str):
+                continue
+            sources[idx] = json.dumps(sources[idx])
     return metadata
 
 
@@ -221,11 +224,6 @@ class Neo4jGraphDB(BaseGraphDB):
                 n += $metadata
         """
 
-        # serialization
-        if metadata["sources"]:
-            for idx in range(len(metadata["sources"])):
-                metadata["sources"][idx] = json.dumps(metadata["sources"][idx])
-
         with self.driver.session(database=self.db_name) as session:
             session.run(
                 query,
@@ -283,11 +281,6 @@ class Neo4jGraphDB(BaseGraphDB):
                 # Merge node and set metadata
                 created_at = metadata.pop("created_at")
                 updated_at = metadata.pop("updated_at")
-
-                # Serialization for sources
-                if metadata.get("sources"):
-                    for idx in range(len(metadata["sources"])):
-                        metadata["sources"][idx] = json.dumps(metadata["sources"][idx])
 
                 prepared_nodes.append(
                     {
