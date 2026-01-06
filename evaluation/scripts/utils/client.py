@@ -159,7 +159,8 @@ class MemosApiClient:
                 {
                     "messages": batch_messages,
                     "user_id": user_id,
-                    "mem_cube_id": user_id,
+                    # "mem_cube_id": user_id,
+                    "writable_cube_ids": [user_id],
                     "conversation_id": conv_id,
                 }
             )
@@ -178,7 +179,8 @@ class MemosApiClient:
             {
                 "query": query,
                 "user_id": user_id,
-                "mem_cube_id": user_id,
+                # "mem_cube_id": user_id,
+                "readable_cube_ids": [user_id],
                 "conversation_id": "",
                 "top_k": top_k,
                 "mode": os.getenv("SEARCH_MODE", "fast"),

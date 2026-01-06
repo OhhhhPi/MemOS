@@ -11,14 +11,23 @@ services:
     env_file:
       - ../.env
     depends_on:
-      - neo4j
-      - qdrant
+      neo4j:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_started
     environment:
       - PYTHONPATH=/app/src
-      - HF_ENDPOINT=https://hf-mirror.com
+      - HF_ENDPOINT=https://huggingface.co
+      # - HF_ENDPOINT=https://hf-mirror.com
       - QDRANT_HOST=qdrant-docker
       - QDRANT_PORT=6333
       - NEO4J_URI=bolt://neo4j-docker:7687
+            # 添加以下 Redis 配置
+      - REDIS_HOST=redis-docker
+      - REDIS_PORT=6379
+      - MEMSCHEDULER_REDIS_HOST=redis-docker
     volumes:
       - ../src:/app/src
       - .:/app/docker
@@ -58,6 +67,15 @@ services:
       QDRANT__SERVICE__GRPC_PORT: 6334
       QDRANT__SERVICE__HTTP_PORT: 6333
     restart: unless-stopped
+    networks:
+      - memos_network
+
+  # docker-compose.yml 添加 Redis
+  redis:
+    image: redis:7-alpine
+    container_name: redis-docker
+    ports:
+      - "6379:6379"
     networks:
       - memos_network
 

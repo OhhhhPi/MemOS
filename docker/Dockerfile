@@ -15,11 +15,12 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Set Hugging Face mirror
-ENV HF_ENDPOINT=https://hf-mirror.com
-
-# Install Python packages
+# ENV HF_ENDPOINT=https://hf-mirror.com
+ENV HF_ENDPOINT=https://huggingface.co
+# Install Python packages (use Aliyun mirror)
 COPY docker/requirements.txt .
-RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple/ && \
+    pip install --no-cache-dir -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 # Copy application code
 COPY docker/ ./docker/
