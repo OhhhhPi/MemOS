@@ -191,17 +191,26 @@ class MultiModalStructMemReader(SimpleStructMemReader):
             valid_windows = [w for w in windows if w and w.memory]
 
             if valid_windows:
-                # Collect all texts that need embedding
-                texts_to_embed = [w.memory for w in valid_windows]
+                # Collect windows/texts that need embedding (keep lists aligned)
+                windows_to_embed = [w for w in valid_windows if isinstance(w.memory, str) and w.memory]
+                texts_to_embed = [w.memory for w in windows_to_embed]
 
                 # Batch compute all embeddings at once
                 try:
                     embeddings = self.embedder.embed(texts_to_embed)
+                    if embeddings is None:
+                        raise RuntimeError(
+                            "Embedder returned None for embeddings; check embedder backend configuration and connectivity."
+                        )
                     # Fill embeddings back into memory items
-                    for window, embedding in zip(valid_windows, embeddings, strict=True):
+                    for window, embedding in zip(windows_to_embed, embeddings, strict=True):
                         window.metadata.embedding = embedding
                 except Exception as e:
-                    logger.error(f"[MultiModalStruct] Error batch computing embeddings: {e}")
+                    logger.error(
+                        "[MultiModalStruct] Error batch computing embeddings: %s (texts=%s)",
+                        e,
+                        len(texts_to_embed),
+                    )
                     # Fallback: compute embeddings individually
                     for window in valid_windows:
                         if window.memory:

@@ -153,7 +153,25 @@ class MultiModalParser:
         try:
             return parser.parse(message, info, mode=mode, **kwargs)
         except Exception as e:
-            logger.error(f"[MultiModalParser] Error parsing message: {e}")
+            parser_name = getattr(parser, "__class__", type(parser)).__name__
+            msg_type = type(message).__name__
+            # Keep log compact; avoid dumping huge message bodies.
+            msg_preview = None
+            try:
+                msg_preview = str(message)
+                if len(msg_preview) > 500:
+                    msg_preview = msg_preview[:500] + "..."
+            except Exception:
+                msg_preview = "<unprintable message>"
+
+            logger.error(
+                "[MultiModalParser] Error parsing message: %s | parser=%s | msg_type=%s | msg=%s",
+                e,
+                parser_name,
+                msg_type,
+                msg_preview,
+                exc_info=True,
+            )
             return []
 
     def parse_batch(

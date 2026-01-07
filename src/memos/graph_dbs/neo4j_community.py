@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from memos.configs.graph_db import Neo4jGraphDBConfig
-from memos.graph_dbs.neo4j import Neo4jGraphDB, _prepare_node_metadata
+from memos.graph_dbs.neo4j import Neo4jGraphDB, _flatten_info_fields, _prepare_node_metadata
 from memos.log import get_logger
 from memos.vec_dbs.factory import VecDBFactory
 from memos.vec_dbs.item import VecDBItem
@@ -98,6 +98,76 @@ class Neo4jCommunityGraphDB(Neo4jGraphDB):
                 updated_at=updated_at,
                 metadata=metadata,
             )
+
+    def add_nodes_batch(self, nodes: list[dict[str, Any]], user_name: str | None = None) -> None:
+        """Batch add nodes for Neo4j Community Edition.
+
+        Unlike the enterprise-backed `Neo4jGraphDB`, community mode relies on an external
+        vector DB (e.g., Qdrant). We must therefore sync embeddings to `self.vec_db` even
+        when the caller uses batch insert.
+        """
+
+        if not nodes:
+            logger.warning("[add_nodes_batch] Empty nodes list, skipping")
+            return
+
+        effective_user_name = user_name if user_name else self.config.user_name
+
+        vec_items: list[VecDBItem] = []
+        nodes_for_neo4j: list[dict[str, Any]] = []
+
+        for node_data in nodes:
+            node_id = node_data.get("id")
+            memory = node_data.get("memory")
+            metadata = node_data.get("metadata", {})
+
+            if node_id is None or memory is None:
+                logger.warning("[add_nodes_batch] Skip invalid node: missing id/memory")
+                continue
+
+            # Ensure user_name tagging in shared-db mode
+            if not self.config.use_multi_db and (self.config.user_name or effective_user_name):
+                metadata["user_name"] = effective_user_name
+
+            metadata = _prepare_node_metadata(metadata)
+            metadata = _flatten_info_fields(metadata)
+
+            embedding = metadata.pop("embedding", None)
+            if embedding is None:
+                raise ValueError(f"Missing 'embedding' in metadata for node {node_id}")
+
+            # Mark sync status in Neo4j metadata; keep memory in vector payload for filtering/debug
+            vector_sync_status = "success"
+            vec_items.append(
+                VecDBItem(
+                    id=node_id,
+                    vector=embedding,
+                    payload={
+                        "memory": memory,
+                        "vector_sync": vector_sync_status,
+                        **metadata,
+                    },
+                )
+            )
+
+            # Neo4j side should not store the raw embedding
+            metadata["vector_sync"] = vector_sync_status
+            nodes_for_neo4j.append({"id": node_id, "memory": memory, "metadata": metadata})
+
+        if not nodes_for_neo4j:
+            logger.warning("[add_nodes_batch] No valid nodes to insert after preparation")
+            return
+
+        # Step 1: sync vectors
+        try:
+            self.vec_db.add(vec_items)
+        except Exception as e:
+            logger.warning(f"[VecDB] batch insert failed: {e}")
+            for item in nodes_for_neo4j:
+                item["metadata"]["vector_sync"] = "failed"
+
+        # Step 2: write Neo4j nodes in batch
+        super().add_nodes_batch(nodes_for_neo4j, user_name=effective_user_name)
 
     def get_children_with_embeddings(
         self, id: str, user_name: str | None = None

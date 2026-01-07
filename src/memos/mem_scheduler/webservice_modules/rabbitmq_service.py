@@ -94,6 +94,15 @@ class RabbitMQSchedulerModule(BaseSchedulerModule):
                 f"[DIAGNOSTIC] initialize_rabbitmq called. in_ci={in_ci}, in_pytest={in_pytest}, "
                 f"MEMOS_ENABLE_RABBITMQ={enable_env}, config_path={config_path}"
             )
+
+            # Default behavior: RabbitMQ is opt-in.
+            # If not explicitly enabled, skip initialization to avoid noisy errors and retries.
+            if not enable_env and config is None:
+                logger.info(
+                    "RabbitMQ initialization skipped (MEMOS_ENABLE_RABBITMQ is not true)."
+                )
+                return
+
             if (in_ci or in_pytest) and not enable_env:
                 logger.info(
                     "Skipping RabbitMQ initialization in CI/test environment. Set MEMOS_ENABLE_RABBITMQ=true to enable."
@@ -105,7 +114,7 @@ class RabbitMQSchedulerModule(BaseSchedulerModule):
             if config is None:
                 if config_path is None and AuthConfig.default_config_exists():
                     auth_config = AuthConfig.from_local_config()
-                elif Path(config_path).exists():
+                elif config_path is not None and Path(config_path).exists():
                     auth_config = AuthConfig.from_local_config(config_path=config_path)
                 else:
                     auth_config = AuthConfig.from_local_env()
@@ -304,6 +313,15 @@ class RabbitMQSchedulerModule(BaseSchedulerModule):
         Publish a message to RabbitMQ.
         """
         import pika
+
+        # RabbitMQ is opt-in for local/self-hosted deployments.
+        # If not explicitly enabled, treat publish as a no-op to avoid noisy errors.
+        if os.getenv("MEMOS_ENABLE_RABBITMQ", "").lower() != "true":
+            logger.debug(
+                "RabbitMQ publish skipped (MEMOS_ENABLE_RABBITMQ is not true). label=%s",
+                message.get("label"),
+            )
+            return True
 
         exchange_name = self.rabbitmq_exchange_name
         routing_key = self.rabbit_queue_name
