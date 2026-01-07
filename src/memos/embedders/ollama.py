@@ -70,8 +70,35 @@ class OllamaEmbedder(BaseEmbedder):
         # Truncate texts if max_tokens is configured
         texts = self._truncate_texts(texts)
 
-        response = self.client.embed(
-            model=self.config.model_name_or_path,
-            input=texts,
-        )
-        return response.embeddings
+        try:
+            response = self.client.embed(
+                model=self.config.model_name_or_path,
+                input=texts,
+            )
+
+            embeddings = None
+            # ollama python client may return a pydantic model or a dict depending on version
+            if response is None:
+                embeddings = None
+            elif hasattr(response, "embeddings"):
+                embeddings = response.embeddings
+            elif isinstance(response, dict):
+                embeddings = response.get("embeddings") or response.get("embedding")
+
+            if embeddings is None:
+                raise RuntimeError(
+                    "Ollama embed returned None. "
+                    f"api_base={self.api_base} model={self.config.model_name_or_path}"
+                )
+
+            return embeddings
+        except Exception as e:
+            logger.error(
+                "[OllamaEmbedder] embed failed: %s | api_base=%s | model=%s | texts=%s",
+                e,
+                self.api_base,
+                self.config.model_name_or_path,
+                len(texts) if isinstance(texts, list) else "?",
+                exc_info=True,
+            )
+            raise
