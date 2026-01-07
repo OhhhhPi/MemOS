@@ -43,7 +43,7 @@ def test_ollama_embedder_config():
         OllamaEmbedderConfig,
         {
             "model_name_or_path": "test-model",
-            "api_base": "http://localhost:11434",
+            "api_base": "http://host.docker.internal:11434",
         },
     )
 

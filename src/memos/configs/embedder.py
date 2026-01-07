@@ -23,7 +23,7 @@ class BaseEmbedderConfig(BaseConfig):
 
 
 class OllamaEmbedderConfig(BaseEmbedderConfig):
-    api_base: str = Field(default="http://localhost:11434", description="Base URL for Ollama API")
+    api_base: str = Field(default="http://host.docker.internal:11434", description="Base URL for Ollama API")
 
 
 class ArkEmbedderConfig(BaseEmbedderConfig):

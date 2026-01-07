@@ -64,7 +64,7 @@ def test_openai_llm_config():
         {
             "model_name_or_path": "test-model",
             "api_key": "test-key",
-            "api_base": "http://localhost:11434",
+            "api_base": "http://host.docker.internal:11434",
             "temperature": 0.7,
             "max_tokens": 1024,
             "top_p": 0.9,
@@ -100,7 +100,7 @@ def test_ollama_llm_config():
             "max_tokens": 1024,
             "top_p": 0.9,
             "top_k": 50,
-            "api_base": "http://localhost:11434",
+            "api_base": "http://host.docker.internal:11434",
         },
     )
 

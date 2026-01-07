@@ -444,7 +444,7 @@ class APIConfig:
                     "model_name_or_path": os.getenv(
                         "MOS_EMBEDDER_MODEL", "nomic-embed-text:latest"
                     ),
-                    "api_base": os.getenv("OLLAMA_API_BASE", "http://localhost:11434"),
+                    "api_base": os.getenv("OLLAMA_API_BASE", "http://host.docker.internal:11434"),
                 },
             }
 
