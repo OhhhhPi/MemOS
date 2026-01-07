@@ -26,7 +26,7 @@ def get_reader_config() -> dict[str, Any]:
     """
     openai_api_key = os.getenv("OPENAI_API_KEY")
     openai_base_url = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-    ollama_api_base = os.getenv("OLLAMA_API_BASE", "http://localhost:11434")
+    ollama_api_base = os.getenv("OLLAMA_API_BASE", "http://host.docker.internal:11434")
 
     # Get LLM backend and config
     llm_backend = os.getenv("MEM_READER_LLM_BACKEND", "openai")

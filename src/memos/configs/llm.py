@@ -86,7 +86,7 @@ class AzureResponsesLLMConfig(BaseLLMConfig):
 
 class OllamaLLMConfig(BaseLLMConfig):
     api_base: str = Field(
-        default="http://localhost:11434",
+        default="http://host.docker.internal:11434",
         description="Base URL for Ollama API",
     )
     enable_thinking: bool = Field(
