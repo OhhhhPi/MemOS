@@ -295,6 +295,23 @@ class APIConfig:
         }
 
     @staticmethod
+    def ollama_chat_config() -> dict[str, Any]:
+        """Get Ollama chat model configuration."""
+        return {
+            "model_name_or_path": os.getenv("MOS_CHAT_MODEL", "llama3.1:latest"),
+            "temperature": float(os.getenv("MOS_CHAT_TEMPERATURE", "0.7")),
+            "max_tokens": int(os.getenv("MOS_MAX_TOKENS", "2048")),
+            "top_p": float(os.getenv("MOS_TOP_P", "0.9")),
+            "top_k": int(os.getenv("MOS_TOP_K", "50")),
+            "remove_think_prefix": True,
+            "api_base": os.getenv("OLLAMA_API_BASE", "http://host.docker.internal:11434"),
+            "enable_thinking": os.getenv("MOS_CHAT_ENABLE_THINKING", "false")
+            .lower()
+            .strip()
+            == "true",
+        }
+
+    @staticmethod
     def get_activation_config() -> dict[str, Any]:
         """Get Ollama configuration."""
         return {
@@ -319,14 +336,40 @@ class APIConfig:
     @staticmethod
     def get_memreader_config() -> dict[str, Any]:
         """Get MemReader configuration."""
+        provider = os.getenv("MEMRADER_MODEL_PROVIDER", "openai").lower().strip()
+        model_name_or_path = os.getenv("MEMRADER_MODEL", "gpt-4o-mini")
+        temperature = float(os.getenv("MEMRADER_TEMPERATURE", "0.6"))
+        max_tokens = int(os.getenv("MEMRADER_MAX_TOKENS", "8000"))
+        top_p = float(os.getenv("MEMRADER_TOP_P", "0.95"))
+        top_k = int(os.getenv("MEMRADER_TOP_K", "20"))
+
+        if provider == "ollama":
+            return {
+                "backend": "ollama",
+                "config": {
+                    "model_name_or_path": os.getenv(
+                        "MEMRADER_MODEL", "llama3.1:latest"
+                    ),
+                    "api_base": os.getenv(
+                        "OLLAMA_API_BASE", "http://host.docker.internal:11434"
+                    ),
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "top_p": top_p,
+                    "top_k": top_k,
+                    "remove_think_prefix": True,
+                },
+            }
+
+        # Default: OpenAI-compatible LLM
         return {
             "backend": "openai",
             "config": {
-                "model_name_or_path": os.getenv("MEMRADER_MODEL", "gpt-4o-mini"),
-                "temperature": 0.6,
-                "max_tokens": int(os.getenv("MEMRADER_MAX_TOKENS", "8000")),
-                "top_p": 0.95,
-                "top_k": 20,
+                "model_name_or_path": model_name_or_path,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "top_p": top_p,
+                "top_k": top_k,
                 "api_key": os.getenv("MEMRADER_API_KEY", "EMPTY"),
                 # Default to OpenAI base URL when env var is not provided to satisfy pydantic
                 # validation requirements during tests/import.
@@ -707,14 +750,16 @@ class APIConfig:
         openai_config = APIConfig.get_openai_config()
         qwen_config = APIConfig.qwen_config()
         vllm_config = APIConfig.vllm_config()
+        ollama_config = APIConfig.ollama_chat_config()
         reader_config = APIConfig.get_reader_config()
 
         backend_model = {
             "openai": openai_config,
             "huggingface": qwen_config,
             "vllm": vllm_config,
+            "ollama": ollama_config,
         }
-        backend = os.getenv("MOS_CHAT_MODEL_PROVIDER", "openai")
+        backend = os.getenv("MOS_CHAT_MODEL_PROVIDER", "openai").lower().strip()
         mysql_config = APIConfig.get_mysql_config()
         config = {
             "user_id": os.getenv("MOS_USER_ID", "root"),
@@ -771,17 +816,16 @@ class APIConfig:
     @staticmethod
     def get_start_default_config() -> dict[str, Any]:
         """Get default configuration for Start API."""
-        config = {
-            "user_id": os.getenv("MOS_USER_ID", "default_user"),
-            "session_id": os.getenv("MOS_SESSION_ID", "default_session"),
-            "enable_textual_memory": True,
-            "enable_activation_memory": os.getenv("ENABLE_ACTIVATION_MEMORY", "false").lower()
-            == "true",
-            "enable_preference_memory": os.getenv("ENABLE_PREFERENCE_MEMORY", "false").lower()
-            == "true",
-            "top_k": int(os.getenv("MOS_TOP_K", "5")),
-            "chat_model": {
-                "backend": os.getenv("MOS_CHAT_MODEL_PROVIDER", "openai"),
+        chat_backend = os.getenv("MOS_CHAT_MODEL_PROVIDER", "openai").lower().strip()
+        if chat_backend == "ollama":
+            chat_model = {"backend": "ollama", "config": APIConfig.ollama_chat_config()}
+        elif chat_backend == "vllm":
+            chat_model = {"backend": "vllm", "config": APIConfig.vllm_config()}
+        elif chat_backend == "huggingface":
+            chat_model = {"backend": "huggingface", "config": APIConfig.qwen_config()}
+        else:
+            chat_model = {
+                "backend": "openai",
                 "config": {
                     "model_name_or_path": os.getenv("MOS_CHAT_MODEL", "gpt-4o-mini"),
                     "api_key": os.getenv("OPENAI_API_KEY", "sk-xxxxxx"),
@@ -792,6 +836,18 @@ class APIConfig:
                     "top_k": int(os.getenv("MOS_TOP_K", 50)),
                     "remove_think_prefix": True,
                 },
+            }
+        config = {
+            "user_id": os.getenv("MOS_USER_ID", "default_user"),
+            "session_id": os.getenv("MOS_SESSION_ID", "default_session"),
+            "enable_textual_memory": True,
+            "enable_activation_memory": os.getenv("ENABLE_ACTIVATION_MEMORY", "false").lower()
+            == "true",
+            "enable_preference_memory": os.getenv("ENABLE_PREFERENCE_MEMORY", "false").lower()
+            == "true",
+            "top_k": int(os.getenv("MOS_TOP_K", "5")),
+            "chat_model": {
+                **chat_model,
             },
         }
 
@@ -810,13 +866,15 @@ class APIConfig:
         openai_config = APIConfig.get_openai_config()
         qwen_config = APIConfig.qwen_config()
         vllm_config = APIConfig.vllm_config()
+        ollama_config = APIConfig.ollama_chat_config()
         mysql_config = APIConfig.get_mysql_config()
         reader_config = APIConfig.get_reader_config()
-        backend = os.getenv("MOS_CHAT_MODEL_PROVIDER", "openai")
+        backend = os.getenv("MOS_CHAT_MODEL_PROVIDER", "openai").lower().strip()
         backend_model = {
             "openai": openai_config,
             "huggingface": qwen_config,
             "vllm": vllm_config,
+            "ollama": ollama_config,
         }
         # Create MOSConfig
         config_dict = {

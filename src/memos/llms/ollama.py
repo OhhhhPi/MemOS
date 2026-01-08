@@ -73,7 +73,7 @@ class OllamaLLM(BaseLLM):
                 "top_p": kwargs.get("top_p", self.config.top_p),
                 "top_k": kwargs.get("top_k", self.config.top_k),
             },
-            think=self.config.enable_thinking,
+            # think=self.config.enable_thinking,
             tools=kwargs.get("tools"),
         )
         logger.info(f"Raw response from Ollama: {response.model_dump_json()}")
@@ -106,7 +106,7 @@ class OllamaLLM(BaseLLM):
                 "top_p": kwargs.get("top_p", self.config.top_p),
                 "top_k": kwargs.get("top_k", self.config.top_k),
             },
-            think=self.config.enable_thinking,
+            # think=self.config.enable_thinking,
             stream=True,
         )
         # Streaming chunks of text
