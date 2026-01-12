@@ -18,7 +18,7 @@ evaluation/configs/*
 **script.py**
 .env
 evaluation/scripts/personamem
-
+*.dump
 # benchmarks
 benchmarks/
 
