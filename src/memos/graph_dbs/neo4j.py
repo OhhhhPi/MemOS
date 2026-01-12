@@ -221,10 +221,6 @@ class Neo4jGraphDB(BaseGraphDB):
                 n += $metadata
         """
 
-        # serialization
-        if metadata["sources"]:
-            for idx in range(len(metadata["sources"])):
-                metadata["sources"][idx] = json.dumps(metadata["sources"][idx])
 
         with self.driver.session(database=self.db_name) as session:
             session.run(
@@ -284,10 +280,6 @@ class Neo4jGraphDB(BaseGraphDB):
                 created_at = metadata.pop("created_at")
                 updated_at = metadata.pop("updated_at")
 
-                # Serialization for sources
-                if metadata.get("sources"):
-                    for idx in range(len(metadata["sources"])):
-                        metadata["sources"][idx] = json.dumps(metadata["sources"][idx])
 
                 prepared_nodes.append(
                     {
