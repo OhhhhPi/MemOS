@@ -9,7 +9,7 @@ from time import time
 import pandas as pd
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+from ollama import AsyncClient as OllamaAsyncClient
 from prompts import ANSWER_PROMPT_MEM0, ANSWER_PROMPT_MEMOS, ANSWER_PROMPT_ZEP
 from tqdm import tqdm
 
@@ -23,7 +23,38 @@ sys.path.insert(0, ROOT_DIR)
 sys.path.insert(0, EVAL_SCRIPTS_DIR)
 
 
+def truncate_context(context: str, max_chars: int = 3200) -> str:
+    """Trim overly long contexts to reduce prompt overflows in Ollama."""
+    if context and len(context) > max_chars:
+        return context[:max_chars] + "\n\n[context truncated]"
+    return context
+
+
+def _response_text(response) -> str:
+    """Extract the model reply content from Ollama response objects/dicts."""
+    # Ollama SDK may return pydantic models or plain dicts; handle both safely.
+    if isinstance(response, dict):
+        return response.get("message", {}).get("content", "")
+    message = getattr(response, "message", None)
+    if message and hasattr(message, "content"):
+        return message.content or ""
+    return ""
+
+
+def _response_repr(response) -> str:
+    """Safe, compact debug representation of the response."""
+    try:
+        if hasattr(response, "model_dump"):
+            return json.dumps(response.model_dump(), ensure_ascii=False)
+        if isinstance(response, dict):
+            return json.dumps(response, ensure_ascii=False)
+        return repr(response)
+    except Exception:
+        return repr(response)
+
+
 async def locomo_response(frame, llm_client, context: str, question: str) -> str:
+    # context = truncate_context(context)
     if frame == "zep":
         prompt = ANSWER_PROMPT_ZEP.format(
             context=context,
@@ -39,14 +70,28 @@ async def locomo_response(frame, llm_client, context: str, question: str) -> str
             context=context,
             question=question,
         )
-    response = await llm_client.chat.completions.create(
-        model=os.getenv("CHAT_MODEL"),
+    chat_model = os.getenv("CHAT_MODEL")
+    if not chat_model:
+        raise RuntimeError("CHAT_MODEL is not set; export a valid model name (e.g., llama3.1:latest)")
+
+    prompt_chars = len(prompt)
+    if prompt_chars < 50:
+        print(f"[debug] prompt seems too short: {prompt_chars} chars")
+
+    response = await llm_client.chat(
+        model=chat_model,
         messages=[
-            {"role": "system", "content": prompt},
+            {"role": "system", "content": "Follow the instructions and answer concisely (<=6 words)."},
+            {"role": "user", "content": prompt},
         ],
-        temperature=0,
+        options={"temperature": 0},
     )
-    result = response.choices[0].message.content or ""
+    result = _response_text(response)
+
+    if not result:
+        # Surface raw response and prompt length to debug empty answers.
+        print(f"[debug] empty answer; prompt_chars={prompt_chars}")
+        print(f"[debug] raw response: {_response_repr(response)}")
 
     return result
 
@@ -81,9 +126,8 @@ async def main(frame, version="default"):
     response_path = f"results/locomo/{frame}-{version}/{frame}_locomo_responses.json"
 
     load_dotenv()
-    oai_client = AsyncOpenAI(
-        api_key=os.getenv("CHAT_MODEL_API_KEY"), base_url=os.getenv("CHAT_MODEL_BASE_URL")
-    )
+    base_url = "http://127.0.0.1:11434"
+    oai_client = OllamaAsyncClient(host=base_url)
 
     locomo_df = pd.read_json("data/locomo/locomo10.json")
     with open(search_path) as file:
